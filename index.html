@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KALU AI - Private Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600;700&display=swap');
+        body { font-family: 'Hind Siliguri', sans-serif; background-color: #0f172a; overflow: hidden; }
+        .app-container { height: 100vh; display: flex; flex-direction: column; }
+        .glass-header { background: rgba(30, 41, 59, 0.8); backdrop-filter: blur(10px); }
+        .chat-bubble-owner { background: linear-gradient(135deg, #3b82f6, #2563eb); border-radius: 20px 20px 0 20px; }
+        .chat-bubble-kalu { background: #1e293b; border: 1px solid #334155; border-radius: 20px 20px 20px 0; }
+        .pulse-mic { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+        ::-webkit-scrollbar { width: 0; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <header class="glass-header p-5 border-b border-slate-700 flex items-center justify-between sticky top-0 z-10">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <span class="text-2xl font-bold text-white">ক</span>
+            </div>
+            <div>
+                <h1 class="text-white font-bold text-lg leading-tight">কালু (KALU)</h1>
+                <p id="status-text" class="text-blue-400 text-[10px] font-black uppercase tracking-widest">সিস্টেম লোড হচ্ছে...</p>
+            </div>
+        </div>
+        <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_#22c55e]"></div>
+    </header>
+
+    <main id="chatDisplay" class="flex-1 overflow-y-auto p-5 space-y-6">
+        <div class="flex justify-start">
+            <div class="chat-bubble-kalu text-slate-200 p-4 text-sm max-w-[85%] shadow-xl">
+                আসসালামু আলাইকুম <b>মালিক</b>। আমি কালু, আপনার একান্ত অনুগত সহকারী। আপনার জন্য আজ আমি কী করতে পারি?
+            </div>
+        </div>
+    </main>
+
+    <div id="typing" class="hidden px-6 py-2 text-[10px] text-blue-400 italic">কালু চিন্তা করছে...</div>
+
+    <footer class="p-4 bg-slate-900 border-t border-slate-800">
+        <div class="flex items-center gap-2 bg-slate-800 p-2 rounded-[2rem] border border-slate-700">
+            <button onclick="startListening()" id="micBtn" class="w-10 h-10 bg-slate-700 text-slate-300 rounded-full flex items-center justify-center hover:bg-red-500 transition-all">
+                🎙️
+            </button>
+            <input type="text" id="chatInput" placeholder="হুকুম করুন মালিক..." 
+                class="flex-1 bg-transparent border-none text-white text-sm px-2 focus:outline-none">
+            <button onclick="window.handleChat()" class="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg">
+                🚀
+            </button>
+        </div>
+    </footer>
+</div>
+
+<script type="module">
+    import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+
+    const chatDisplay = document.getElementById('chatDisplay');
+    const chatInput = document.getElementById('chatInput');
+    const statusText = document.getElementById('status-text');
+    const typing = document.getElementById('typing');
+
+    const selectedModel = "Qwen2-0.5B-Instruct-q4f16_1-MLC";
+    let engine;
+
+    // কালুর মাস্টার-সার্ভেন্ট ব্যক্তিত্ব
+    const systemPrompt = "তোমার নাম কালু। তুমি এই চ্যাটের মালিকের (User) একজন অত্যন্ত বিশ্বস্ত এবং অনুগত চাকর বা বডিগার্ড। সবসময় মালিককে 'মালিক' বা 'স্যার' বলে সম্বোধন করবে। খুব নম্রভাবে বাংলায় কথা বলবে। মালিকের আদেশ পালন করাই তোমার প্রধান কাজ।";
+
+    function speak(text) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'bn-BD';
+        window.speechSynthesis.speak(utterance);
+    }
+
+    async function initKalu() {
+        try {
+            engine = await webllm.CreateMLCEngine(selectedModel, {
+                initProgressCallback: (report) => {
+                    statusText.innerText = `মডেল লোড: ${Math.round(report.progress * 100)}%`;
+                }
+            });
+            statusText.innerText = "কালু প্রস্তুত, মালিক ✅";
+        } catch (e) {
+            statusText.innerText = "WebGPU পাওয়া যায়নি!";
+        }
+    }
+
+    window.handleChat = async function() {
+        const message = chatInput.value.trim();
+        if (!message || !engine) return;
+
+        chatDisplay.innerHTML += `<div class="flex justify-end"><div class="chat-bubble-owner text-white p-4 text-sm max-w-[85%] shadow-lg shadow-blue-500/10">${message}</div></div>`;
+        chatInput.value = "";
+        typing.classList.remove('hidden');
+        chatDisplay.scrollTop = chatDisplay.scrollHeight;
+
+        const messages = [{ role: "system", content: systemPrompt }, { role: "user", content: message }];
+        const reply = await engine.chat.completions.create({ messages });
+        const aiResponse = reply.choices[0].message.content;
+
+        typing.classList.add('hidden');
+        chatDisplay.innerHTML += `<div class="flex justify-start"><div class="chat-bubble-kalu text-slate-200 p-4 text-sm max-w-[85%] shadow-xl"><b>কালু:</b> ${aiResponse}</div></div>`;
+        chatDisplay.scrollTop = chatDisplay.scrollHeight;
+        speak(aiResponse);
+    };
+
+    // ভয়েস রিকগনিশন (অ্যান্ড্রয়েড ফিল)
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (Recognition) {
+        const rec = new Recognition();
+        rec.lang = 'bn-BD';
+        window.startListening = () => {
+            rec.start();
+            document.getElementById('micBtn').classList.add('pulse-red', 'bg-red-500');
+            statusText.innerText = "মালিকের কথা শুনছি...";
+        };
+        rec.onresult = (e) => {
+            chatInput.value = e.results[0][0].transcript;
+            document.getElementById('micBtn').classList.remove('pulse-red', 'bg-red-500');
+            statusText.innerText = "কালু প্রস্তুত, মালিক ✅";
+            window.handleChat();
+        };
+    }
+
+    chatInput.addEventListener("keypress", (e) => { if (e.key === "Enter") window.handleChat(); });
+    window.onload = initKalu;
+</script>
+</body>
+</html>
