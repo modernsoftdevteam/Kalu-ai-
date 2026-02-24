@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneMB Pro - Local AI Fix</title>
+    <style>
+        body { font-family: sans-serif; background: #f0f0f0; display: flex; flex-direction: column; height: 100vh; margin: 0; }
+        .header { background: #075e54; color: white; padding: 15px; text-align: center; }
+        #status { background: #fff3cd; padding: 10px; font-size: 12px; text-align: center; }
+        #chat-box { flex: 1; overflow-y: auto; padding: 20px; }
+        .msg { background: white; padding: 10px; border-radius: 10px; margin-bottom: 10px; max-width: 80%; }
+        .input-area { padding: 10px; background: white; display: flex; }
+        input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        button { background: #075e54; color: white; border: none; padding: 10px 20px; margin-left: 5px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="header">OneMB Local AI (Fixed)</div>
+<div id="status">লাইব্রেরি লোড হচ্ছে...</div>
+<div id="chat-box"></div>
+
+<div class="input-area">
+    <input type="text" id="userInput" placeholder="লিখুন..." disabled>
+    <button id="sendBtn" onclick="send()" disabled>পাঠান</button>
+</div>
+
+<script type="module">
+    // লেটেস্ট লাইব্রেরি লিঙ্ক ব্যবহার করছি
+    import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+
+    const status = document.getElementById("status");
+    const chatBox = document.getElementById("chat-box");
+    let engine;
+
+    async function init() {
+        try {
+            status.innerText = "মডেল ডাউনলোড শুরু হচ্ছে... (GPU সেটিংস চেক করা হচ্ছে)";
+            
+            // নতুন ফাংশন নাম: createMLCEngine
+            engine = await webllm.createMLCEngine("SmolLM-135M-Instruct-v0.2-q4f16_1-MLC", {
+                initProgressCallback: (report) => {
+                    status.innerText = report.text;
+                }
+            });
+
+            status.innerText = "AI রেডি!";
+            document.getElementById("userInput").disabled = false;
+            document.getElementById("sendBtn").disabled = false;
+        } catch (e) {
+            status.innerText = "Error: " + e.message + "। দয়া করে Relaunch বাটন টিপুন!";
+            console.error(e);
+        }
+    }
+
+    window.send = async () => {
+        const input = document.getElementById("userInput");
+        const prompt = input.value;
+        if(!prompt) return;
+
+        chatBox.innerHTML += `<div class="msg"><b>আপনি:</b> ${prompt}</div>`;
+        input.value = "";
+
+        const messages = [{ role: "user", content: prompt }];
+        const reply = await engine.chat.completions.create({ messages });
+        
+        chatBox.innerHTML += `<div class="msg"><b>AI:</b> ${reply.choices[0].message.content}</div>`;
+        chatBox.scrollTop = chatBox.scrollHeight;
+    };
+
+    init();
+</script>
+</body>
+</html>
